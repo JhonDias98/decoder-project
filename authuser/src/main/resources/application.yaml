@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ead_authuser
+    url: jdbc:postgresql://localhost:5432/decoder?currentSchema=authuser
     username: postgres
     password: root
   jpa:
