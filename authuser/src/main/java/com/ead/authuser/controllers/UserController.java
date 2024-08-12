@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.hateoas.Link;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -28,6 +29,9 @@ import java.time.ZoneId;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
 @RestController
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RequestMapping("/users")
@@ -40,6 +44,13 @@ public class UserController {
     public ResponseEntity<Page<UserModel>> getAllUsers(SpecificationTemplate.UserSpec spec,
                                                        @PageableDefault(page = 0, size = 10, sort = "id", direction = Sort.Direction.ASC) Pageable pageable) {
         Page<UserModel> userModelPage = userService.findAll(spec, pageable);
+
+        if(!userModelPage.isEmpty()) {
+            for (UserModel user : userModelPage.toList()) {
+                user.add(buildHateoas(user));
+            }
+        }
+
         return ResponseEntity.status(HttpStatus.OK).body(userModelPage);
     }
 
@@ -47,9 +58,14 @@ public class UserController {
     public ResponseEntity<Object> getOneUser(@PathVariable(value = "id") UUID id) {
         Optional<UserModel> userModelOptional = userService.findById(id);
 
-        return userModelOptional
-                .<ResponseEntity<Object>>map(userModel -> ResponseEntity.status(HttpStatus.OK).body(userModel))
-                .orElseGet(UserController::userNotFound);
+        if (userModelOptional.isEmpty()) {
+            return userNotFound();
+        }
+
+        UserModel user = userModelOptional.get();
+        user.add(buildHateoas(user));
+
+        return ResponseEntity.status(HttpStatus.OK).body(user);
     }
 
     @DeleteMapping("/{id}")
@@ -84,6 +100,8 @@ public class UserController {
         userModel.setLastUpdateDate(LocalDateTime.now(ZoneId.of("UTC")));
 
         userService.updateUser(userModel);
+
+        userModel.add(buildHateoas(userModel));
 
         return ResponseEntity
                 .status(HttpStatus.OK)
@@ -136,10 +154,15 @@ public class UserController {
                 .body(userModel);
     }
 
-    private static ResponseEntity<Object> userNotFound() {
+    private ResponseEntity<Object> userNotFound() {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body("User not found.");
+    }
+
+    private Link buildHateoas(UserModel user) {
+        return linkTo(methodOn(UserController.class)
+                .getOneUser(user.getId())).withSelfRel();
     }
 
 }
